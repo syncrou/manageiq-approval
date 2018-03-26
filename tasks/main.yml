@@ -1,2 +1,35 @@
 ---
 # tasks file for manageiq-approval
+- name: Get the Service to be provisioned
+  uri:
+    url: "{{ request_url }}"
+    method: GET
+    user: "{{ miq_user }}"
+    password: "{{ miq_password }}"
+    force_basic_auth: yes
+    validate_certs: False
+    headers:
+        Content-Type: "application/json"
+    status_code: 200
+  register: request
+  failed_when: request.status != 200
+  tags: tag
+
+- debug: var=request
+
+- name: POST the Approval Rules engine with this service
+  uri:
+    url: "{{ rules_engine_href }}"
+    user: "{{ rules_engine_user }}"
+    password: "{{ rules_engine_password }}"
+    force_basic_auth: yes
+    method: POST
+    validate_certs: False
+    headers:
+        Content-Type: "application/json"
+        body_format: json
+    body:
+        href: "{{ request_url }}"
+    return_content: yes
+  register: rules
+  failed_when: rules.json.status== 'not approved'

@@ -1,2 +1,8 @@
 ---
 # vars file for manageiq-approval
+request_url: http://localhost:3000/api/services/87
+miq_user: admin
+miq_password: smartvm
+rules_engine_href: http://localhost:6379/api
+rules_engine_user: admin
+rules_engine_password: password
