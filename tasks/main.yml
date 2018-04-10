@@ -1,21 +1,51 @@
 ---
 # tasks file for manageiq-approval
-- name: Get the Service to be provisioned
-  uri:
-    url: "{{ request_url }}"
-    method: GET
-    user: "{{ miq_user }}"
-    password: "{{ miq_password }}"
-    force_basic_auth: yes
-    validate_certs: False
-    headers:
-        Content-Type: "application/json"
-    status_code: 200
-  register: request
-  failed_when: request.status != 200
-  tags: tag
+- name: preliminary login information with account that can see everything
+  raw: "oc login -u developer -p asd && oc project {{ namespace }}"
 
-- debug: var=request
+- name: list service instances
+  raw: oc get serviceinstances -o json
+  register: serviceinstances
+
+  # We need to rename the returned item as a generic list since oc is returning a
+  #   reserved key of 'items'
+- set_fact:
+    services_all: "{{ (serviceinstances.stdout | from_json)['items'] }}"
+
+- name: "get serviceclass labels for {{ _apb_service_class_id }}"
+  raw: "oc get clusterserviceclass {{ _apb_service_class_id }} -o json"
+  register: serviceclass
+
+- debug: msg="{{ services_all }}"
+
+- debug: msg="{{ serviceclass.stdout }}"
+
+- name: "pull username from service instance id {{ _apb_service_instance_id }}"
+  loop: "{{ services_all }}"
+  set_fact: 
+    username: "{{ item.spec.userInfo.username }}"
+    project: "{{ item.metadata.namespace }}"
+  when: item.spec.externalID == _apb_service_instance_id
+
+- debug: msg="Username- {{ username }} Project - {{ project }}"
+
+- name: "dump oc project {{ project }}"
+  raw: "oc get project {{ project }} -o json"
+  register: project_json
+
+- name: "dump oc user {{ username }}"
+  raw: "oc get user {{ username }} -o json"
+  register: username_json
+
+- set_fact:
+    service_class_labels: "{{ (serviceclass.stdout | from_json).metadata.labels | default('No Labels') }}"
+    project_labels: "{{ (project_json.stdout | from_json).metadata.labels | default('No Labels') }}"
+    username_labels: "{{ (username_json.stdout | from_json).metadata.labels | default('No Labels') }}"
+
+- debug: msg="Service Class Labels for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_labels }}"
+- debug: msg="Project Labels for {{ (project_json.stdout | from_json).metadata.name }} {{ project_labels }}" 
+- debug: msg="Username Labels for {{ (username_json.stdout | from_json).metadata.name}} {{ username_labels }}"
+
 
 - name: POST the Approval Rules engine with this service
   uri:
@@ -26,10 +56,36 @@
     method: POST
     validate_certs: False
     headers:
-        Content-Type: "application/json"
-        body_format: json
+      X-KIE-ContentType: "JSON",
+      Content-Type: "application/json",
+      Accept: "application/json",
+      body_format: json
     body:
-        href: "{{ request_url }}"
+      userLabel: "{{ username_labels['permissions'] }}",
+      projectLabel: "{{ project_labels['permissions'] }}",
+      serviceLabel: "{{ serviceclass_labels['permissions'] }}",
+      requesterName: "{{ username_json.metadata.name }}",
+      serviceName: "{{ serviceclass_json.metadata.name }}",
+      approvalStatus: "Pending"
     return_content: yes
-  register: rules
-  failed_when: rules.json.status== 'not approved'
+  register: rule_instance_id
+
+- name: GET the approval process status
+  uri:
+    url: "{{ rules_engine_get_href }}/{{ rule_instance_id }}?withVars=true"
+    method: GET
+    user: "{{ rules_engine_user }}"
+    password: "{{ rules_engine_password }}"
+    force_basic_auth: yes
+    validate_certs: False
+    headers:
+      X-KIE-ContentType: "JSON",
+      Content-Type: "application/json",
+      Accept: "application/json",
+      body_format: json
+    status_code: 200
+  register: approval_request
+  until: approval_request.process-instance-variables.approvalStatus == 'Approved'
+  failed_when: approval_request.process-instance-variables.approvalStatus == 'Denied'
+
+- debug: var=approval_request
