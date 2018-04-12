@@ -109,8 +109,10 @@
     body_format: json
     status_code: 200
   register: approval_request
-  until: approval_request.json['process-instance-variables'].approvalStatus == 'Approved'
+  until: approval_request.json['process-instance-variables'].approvalStatus == 'Approved' or approval_request.json['process-instance-variables'].approvalStatus == 'Denied'
   failed_when: approval_request.json['process-instance-variables'].approvalStatus == 'Denied'
+  retries: "10"
+  delay: "30"
 
 - debug:
     var: approval_request.json['process-instance-variables'].approvalStatus
