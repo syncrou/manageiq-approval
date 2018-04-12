@@ -41,51 +41,58 @@
     service_class_labels: "{{ (serviceclass.stdout | from_json).metadata.labels | default('No Labels') }}"
     project_labels: "{{ (project_json.stdout | from_json).metadata.labels | default('No Labels') }}"
     username_labels: "{{ (username_json.stdout | from_json).metadata.labels | default('No Labels') }}"
+    username_name: "{{ (username_json.stdout | from_json).metadata.name | default('No Name') }}"
+    service_class_name: "{{ (serviceclass.stdout | from_json).metadata.name | default('No Name') }}"
 
 - debug: msg="Service Class Labels for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_labels }}"
 - debug: msg="Project Labels for {{ (project_json.stdout | from_json).metadata.name }} {{ project_labels }}" 
 - debug: msg="Username Labels for {{ (username_json.stdout | from_json).metadata.name}} {{ username_labels }}"
+- debug: msg="Username Name for {{ (username_json.stdout | from_json).metadata.name}} {{ username_name }}"
+- debug: msg="Service Class Name for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_name }}"
 
 
 - name: POST the Approval Rules engine with this service
   uri:
-    url: "{{ rules_engine_href }}"
+    url: "{{ rules_engine_post_href }}"
     user: "{{ rules_engine_user }}"
     password: "{{ rules_engine_password }}"
     force_basic_auth: yes
     method: POST
     validate_certs: False
     headers:
-      X-KIE-ContentType: "JSON",
-      Content-Type: "application/json",
-      Accept: "application/json",
-      body_format: json
+      X-KIE-ContentType: "JSON"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    status_code: 201
     body:
-      userLabel: "{{ username_labels['permissions'] }}",
-      projectLabel: "{{ project_labels['permissions'] }}",
-      serviceLabel: "{{ serviceclass_labels['permissions'] }}",
-      requesterName: "{{ username_json.metadata.name }}",
-      serviceName: "{{ serviceclass_json.metadata.name }}",
+      userLabel: "{{ username_labels.permissions }}"
+      projectLabel: "{{ project_labels.permissions }}"
+      serviceLabel: "{{ service_class_labels.permissions }}"
+      requesterName: "{{ username_name }}"
+      serviceName: "{{ service_class_name }}"
       approvalStatus: "Pending"
     return_content: yes
-  register: rule_instance_id
+  register: rule_instance
+
+- debug: msg="Rule instance {{ rule_instance }}"
 
 - name: GET the approval process status
   uri:
-    url: "{{ rules_engine_get_href }}/{{ rule_instance_id }}?withVars=true"
+    url: "{{ rules_engine_get_href }}/{{ rule_instance.content }}?withVars=true"
     method: GET
     user: "{{ rules_engine_user }}"
     password: "{{ rules_engine_password }}"
     force_basic_auth: yes
     validate_certs: False
     headers:
-      X-KIE-ContentType: "JSON",
-      Content-Type: "application/json",
-      Accept: "application/json",
-      body_format: json
+      X-KIE-ContentType: "JSON"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
     status_code: 200
   register: approval_request
-  until: approval_request.process-instance-variables.approvalStatus == 'Approved'
-  failed_when: approval_request.process-instance-variables.approvalStatus == 'Denied'
+  until: approval_request.json['process-instance-variables'].approvalStatus == 'Approved'
+  failed_when: approval_request.json['process-instance-variables'].approvalStatus == 'Denied'
 
-- debug: var=approval_request
+- debug: var=approval_request.json['process-instance-variables'].approvalStatus
