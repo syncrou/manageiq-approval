@@ -16,24 +16,18 @@
   raw: "oc get clusterserviceclass {{ _apb_service_class_id }} -o json"
   register: serviceclass
 
-- debug:
-    msg: "{{ services_all }}"
-    verbosity: 3
+- debug: msg="Services All {{ services_all }}"
 
-- debug:
-    msg: "{{ serviceclass.stdout }}"
-    verbosity: 3
+- debug: msg="Service Class {{ serviceclass.stdout }}"
 
 - name: "pull username from service instance id {{ _apb_service_instance_id }}"
-  loop: "{{ services_all }}"
+  with_items: "{{ services_all }}"
   set_fact: 
     username: "{{ item.spec.userInfo.username }}"
     project: "{{ item.metadata.namespace }}"
   when: item.spec.externalID == _apb_service_instance_id
 
-- debug: 
-    msg: "Username- {{ username }} Project - {{ project }}"
-    verbosity: 3 
+- debug: msg="Username- {{ username }} Project - {{ project }}"
 
 - name: "dump oc project {{ project }}"
   raw: "oc get project {{ project }} -o json"
@@ -50,21 +44,11 @@
     username_name: "{{ (username_json.stdout | from_json).metadata.name | default('No Name') }}"
     service_class_name: "{{ (serviceclass.stdout | from_json).metadata.name | default('No Name') }}"
 
-- debug:
-    msg: "Service Class Labels for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_labels }}"
-    verbosity: 3
-- debug:
-    msg: "Project Labels for {{ (project_json.stdout | from_json).metadata.name }} {{ project_labels }}" 
-    verbosity: 3
-- debug:
-    msg: "Username Labels for {{ (username_json.stdout | from_json).metadata.name}} {{ username_labels }}"
-    verbosity: 3
-- debug:
-    msg: "Username Name for {{ (username_json.stdout | from_json).metadata.name}} {{ username_name }}"
-    verbosity: 3
-- debug:
-    msg: "Service Class Name for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_name }}"
-    verbosity: 3
+- debug: msg="Service Class Labels for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_labels }}"
+- debug: msg="Project Labels for {{ (project_json.stdout | from_json).metadata.name }} {{ project_labels }}"
+- debug: msg="Username Labels for {{ (username_json.stdout | from_json).metadata.name}} {{ username_labels }}"
+- debug: msg="Username Name for {{ (username_json.stdout | from_json).metadata.name}} {{ username_name }}"
+- debug: msg="Service Class Name for {{ (serviceclass.stdout | from_json).metadata.name}} {{ service_class_name }}"
 
 - name: POST the Approval Rules engine with this service
   uri:
@@ -90,9 +74,7 @@
     return_content: yes
   register: rule_instance
 
-- debug:
-    msg: "Rule instance {{ rule_instance }}"
-    verbosity: 3
+- debug: msg="Rule instance {{ rule_instance }}"
 
 - name: GET the approval process status
   uri:
@@ -114,6 +96,4 @@
   retries: "{{ rules_engine_retries }}"
   delay: "{{ rules_engine_delay }}"
 
-- debug:
-    var: approval_request.json['process-instance-variables'].approvalStatus
-    verbosity: 3
+- debug: var=approval_request.json['process-instance-variables'].approvalStatus

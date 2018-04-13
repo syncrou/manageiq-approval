@@ -1,8 +1,2 @@
 ---
 # vars file for manageiq-approval
-rules_engine_post_href: http://localhost:8080/kie-server/services/rest/server/containers/servicecatalog/processes/apprvoal.ServiceCatalogApproval/instances
-rules_engine_get_href: http://localhost:8080/kie-server/services/rest/server/queries/processes/instances 
-rules_engine_user: approver2
-rules_engine_password: password
-rules_engine_retries: 10
-rules_engine_delay: 30
